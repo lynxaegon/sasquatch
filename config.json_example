@@ -1,0 +1,7 @@
+{
+	"ENVIROMENT" 	: "dev",
+	"DB_HOST" 		: "host_here",
+	"DB_USER" 		: "user_here",
+	"DB_PASS" 		: "pass_here",
+	"DB_DB"   		: "db_here"
+}
