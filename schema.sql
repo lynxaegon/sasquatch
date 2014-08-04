@@ -19,7 +19,8 @@ DROP TABLE IF EXISTS `cron_runs`;
 CREATE TABLE `cron_runs` (
   `runID` varchar(32) NOT NULL,
   `cronID` int(11) NOT NULL,
-  `runDateTime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `startDateTime` datetime NOT NULL,
+  `endDateTime` datetime NOT NULL,
   PRIMARY KEY (`runID`),
   KEY `cronID` (`cronID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
@@ -39,9 +40,11 @@ CREATE TABLE `crons` (
   `cronPattern` text NOT NULL,
   `dateTimeAdded` datetime NOT NULL,
   `lastRunTime` datetime NOT NULL,
+  `lastDuration` int(11) NOT NULL,
+  `isRunning` int(11) NOT NULL,
   `isActive` int(11) NOT NULL DEFAULT '1',
   PRIMARY KEY (`ID`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -59,7 +62,7 @@ CREATE TABLE `logger` (
   KEY `cronID` (`runID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
@@ -69,4 +72,4 @@ CREATE TABLE `logger` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2014-08-04 14:47:19
+-- Dump completed on 2014-08-04 18:13:23

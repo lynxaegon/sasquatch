@@ -87,7 +87,7 @@ def mysqlWriter(q, db):
 	cursor = db.cursor()
 	while True:
 		data = q.get()
-		print "data: " + str(data)
+		
 		if(data == None):
 			break;
 		if(data['type'] == "finished"):
