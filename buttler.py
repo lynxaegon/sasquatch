@@ -22,6 +22,8 @@ from datetime import datetime
 import time
 import json
 import hashlib
+from warnings import filterwarnings
+filterwarnings('ignore', category = MySQLdb.Warning)
 
 queue = Queue()
 
@@ -35,7 +37,7 @@ class Runner:
 	def run(self):
 		args = shlex.split(self.command)
 		p = subprocess.Popen(args,stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-		
+
 		self.make_async(p.stdout)
 		self.make_async(p.stderr)
 		
@@ -52,7 +54,8 @@ class Runner:
 			if stderrPiece:
 				self.q.put({"runID": self.runID, "output" : stderrPiece, "type" : "stderr"})
 
-			if(p.poll() == False):
+			if(p.poll() != None):
+				self.q.put({"cronID" : self.cronID, "runID": self.runID, "type" : "finished"})
 				break
 			
 	def make_async(self,fd):
@@ -84,9 +87,14 @@ def mysqlWriter(q, db):
 	cursor = db.cursor()
 	while True:
 		data = q.get()
+		print "data: " + str(data)
 		if(data == None):
 			break;
-		# print data['output'] + " - " + data['type']
+		if(data['type'] == "finished"):
+			cursor.execute("UPDATE crons SET lastDuration = UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(lastRunTime), isRunning = 0  WHERE ID = " + str(data['cronID']))
+			cursor.execute("UPDATE cron_runs SET endDateTime = NOW() WHERE runID = '" + data['runID'] + "'")
+			db.commit()
+			continue
 		
 		cursor.execute("INSERT INTO logger (runID, output, type, dateTimeAdded) VALUES('" + data['runID'] + "','" + MySQLdb.escape_string(data['output']) + "','" + MySQLdb.escape_string(data['type']) + "',NOW() )")
 		db.commit()
@@ -119,16 +127,14 @@ for item in data :
 
 		cron = croniter(item['cronPattern'], item['lastRunTime'])
 		shouldRunAt = cron.get_next(datetime)
-		
-		print shouldRunAt
 
 		if(shouldRunAt < now):
 			app = Runner(item['ID'], item['command'], queue)
 
-			cursor.execute("UPDATE crons SET lastRunTime = NOW() WHERE ID = " + str(item['ID']))
-			cursor.execute("INSERT INTO cron_runs (runID, cronID) VALUES( '" + app.runID + "', '" + str(app.cronID) + "' )")
-			db.commit()	
-			
+			cursor.execute("UPDATE crons SET lastRunTime = NOW(), isRunning = 1 WHERE ID = " + str(item['ID']))
+			cursor.execute("INSERT INTO cron_runs (runID, cronID, startDateTime) VALUES( '" + app.runID + "', '" + str(app.cronID) + "', NOW() )")
+			db.commit()     
+
 			th = Thread(target=app.run)
 			th.daemon = True
 			appThreads.append(th)
@@ -147,15 +153,3 @@ queue.put(None)
 worker.join()
 
 db.close()
-
-
-
-
-
-
-
-
-
-
-
-
