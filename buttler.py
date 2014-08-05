@@ -95,7 +95,7 @@ def mysqlWriter(q, db):
 			cursor.execute("UPDATE cron_runs SET endDateTime = NOW() WHERE runID = '" + data['runID'] + "'")
 			db.commit()
 			continue
-		
+		# print data
 		cursor.execute("INSERT INTO logger (runID, output, type, dateTimeAdded) VALUES('" + data['runID'] + "','" + MySQLdb.escape_string(data['output']) + "','" + MySQLdb.escape_string(data['type']) + "',NOW() )")
 		db.commit()
 
