@@ -10,7 +10,40 @@
 	<!-- Latest compiled and minified JavaScript -->
 	<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
 	<script>
+		var lastLogRowID = 0;
+		function onHashChange()
+		{
+			var hash = location.hash
+
+			if(matches = hash.match(/\#cronID-(\d+)$/i))
+			{
+				var cronID = matches[1];
+				// should show cron run list
+
+				getCronRunList(cronID);
+				$(".cronRunList").show();
+				$(".cronLogsZone").hide();
+			}
+			else if(matches = hash.match(/\#cronID-(\d+)\/runID-(.+)/i))
+			{
+				var cronID = matches[1];
+				var runID = matches[2];
+				// should show cron run log
+
+				$(".cronRunList").hide();
+				$(".cronLogsZone").show();
+				getLogsForCron(cronID, runID);
+			}
+		}
+		$(window).on('hashchange',function(){ 
+		    onHashChange();
+		});
+		
 		$(document).ready(function(){
+			$(".cronLogsZone").css({
+				"width" : $(window).width() - $(".cronList").width() - 20 * 2 // 20 is the margin
+			});
+			onHashChange();
 			$.ajax({
 				url: "api.php?request=getAllCrons",
 				success: function(data){
@@ -18,20 +51,19 @@
 					for(i in data.data)
 					{
 						var apiItem = data.data[i];
-						var $item = $('<a href="#" class="list-group-item"/>');
+						var $item = $('<a href="#cronID-'+ apiItem.ID +'" class="list-group-item"/>');
 						
 						var text = apiItem.name;
 						if(apiItem.isRunning == 1)
-							text += '<span class="label label-success" style="float:right;">Running.. ( '+ apiItem.runningTime +'s )</span>';
+							text += '<span class="label label-success" style="float:right;">Running.. '+ apiItem.runningTime +'</span>';
 						else
-							text += '<span class="label label-default" style="float:right;">'+ apiItem['lastRunTime'] +' ( '+ apiItem['lastDuration'] +'s )</span>';
+							text += '<span class="label label-default" style="float:right;">'+ apiItem['lastRunTime'] +'</span>';
 
 						$item.html(text);
 						$(".cronList").append($item);
 					}
 				}
 			});
-			getLogsForCron(1);
 		});
 	(function(undefined){
 	    var charsToReplace = {
@@ -55,29 +87,86 @@
 	        return this.replace(replaceRegF(replaceMap), replaceFnF(replaceMap));
 	    };
 	})();
-	function getLogsForCron(id)
+	function getCronRunList(cronID)
 	{
+		$(".cronRunList").empty();
+		$(".cronLogTimes").empty();
 		$.ajax({
-			url: "api.php?request=getLogsForCron&cronID=" + id,
+				url: "api.php?request=getCronRunList&cronID=" + cronID,
+				success: function(data){
+					var list = [];
+					for(i in data.data)
+					{
+						var apiItem = data.data[i];
+						var $item = $('<a href="#cronID-'+ apiItem.cronID +'/runID-'+ apiItem.runID +'" class="list-group-item"/>');
+						var text = apiItem.startDateTime;
+						if(apiItem.isRunning == 1)
+							text += '<span class="label label-success" style="float:right;">Running.. '+ apiItem.runningTime +'</span>';
+						else
+							text += '<span class="label label-default" style="float:right;">'+ apiItem['runningTime'] +'</span>';
+
+						$item.html(text);
+						$(".cronRunList").append($item);
+					}
+				}
+			});
+	}
+	function getLogsForCron(cronID, runID)
+	{
+		// $(".cronLogs").empty();
+		runID = runID || "";
+		$.ajax({
+			url: "api.php?request=getLogsForCron&cronID=" + cronID + "&runID="+ runID + "&lastRowID="+lastLogRowID,
 			success: function(data){
 				var list = [];
+				var $tmpCronLogs = $().add("<span/>");
+				var $tmpCronLogTimes = $().add("<span/>");
+
 				for(i in data.data.logs)
 				{
 					var apiItem = data.data.logs[i];
-					var $item = $('<a href="#" class="list-group-item"/>');
-					if(apiItem.type == "stderr")
-						$item.addClass("list-group-item-danger");
+					var $item = $('<div/>');
+					var $timeStamp = $("<div/>");
 
-					var text = apiItem.output;
+					$timeStamp.html(apiItem.logTime);
+					$item.html(apiItem.output.htmlEscape())
+
+					if(apiItem.type == "stderr")
+					{
+						$timeStamp.css({
+							"background-color": "#f2dede"
+						});
+						$item.css({
+							"background-color": "#f2dede"
+						});
+					}
 					
-					$item.html(text.htmlEscape().replace("\n","<br/>"));
-					$(".cronLogs").append($item);
+					$item.html($item.html());
+					$tmpCronLogs.append($item);
+					$tmpCronLogTimes.append($timeStamp);
 				}
+				$(".cronLogs").append($tmpCronLogs);
+				$(".cronLogTimes").append($tmpCronLogTimes);
+				$(".cronLogsZone").scrollTop($('.cronLogsZone')[0].scrollHeight);
+				lastLogRowID += data.data.lastRowID;
 				if(data.data.isRunning == "1")
 				{
 					setTimeout(function(){
-						getLogsForCron(id);
-					},3000);			
+						getLogsForCron(cronID);
+					},500);			
+				}
+				else
+				{
+					if(data.data.logs.length > 0)
+					{
+						setTimeout(function(){
+							getLogsForCron(cronID);
+						},500);		
+					}
+					else
+					{
+						lastLogRowID = 0;
+					}
 				}
 			}
 		});
@@ -86,13 +175,14 @@
 
 	</head>
 	<body>
-		<div style="margin:20px;">
+		<div style="margin:20px;position:relative;height:94%">
 			<div class="list-group cronList" style="float:left;width:300px;">
 			
 			</div>
-			<div class="list-group cronLogs" style="float:left;max-width: 800px;margin-left: 20px;height:90%;overflow-y:auto">
-				
+			<div class="list-group cronRunList" style="display:none;float:left;width:300px;">
+			
 			</div>
+			<pre class="cronLogsZone" style="display:none;position:absolute;left:300px;margin-left: 0px;height:100%;overflow-y:auto;width:100%"><div class="cronLogTimes" style="float:left;width: 105px;"></div><div class="cronLogs" style="float:left;position:absolute;left:105px;"></div></pre>
 		</div>
 	</body>
 </html>

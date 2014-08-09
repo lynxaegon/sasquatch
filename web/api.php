@@ -27,6 +27,13 @@ switch ($request) {
 
 		Renderer::render( getLogsForCron($_REQUEST['cronID'],$_REQUEST['runID'],$_REQUEST['lastRowID']) );
 		break;
+	case 'getCronRunList':
+		$required = array("cronID");
+		$optional = array();
+		check($required, $optional);
+
+		Renderer::render( getCronRunList($_REQUEST['cronID']) );
+		break;
 
 	default:
 		Renderer::ThrowError(StatusCodes::$INVALID_REQUEST);
@@ -46,8 +53,8 @@ function getAllCrons()
 			FROM crons");
 	while($item = mysql_fetch_assoc($result))
 	{
-		$item['runningTime'] = (int)$item['runningTime'];
-		$item['lastDuration'] = (int)$item['lastDuration'];
+		$item['runningTime'] = "[".gmdate("H:i:s", $item['runningTime'])."]";
+		$item['lastDuration'] = "[".gmdate("H:i:s", $item['lastDuration'])."]";
 		$cronList[] = $item;
 	}
 	return $cronList;
@@ -70,24 +77,27 @@ function getLogsForCron($cronID, $runID = "", $lastRowID = "")
 
 	$offset = "";
 	if($lastRowID != "")
-		$offset = "LIMIT ".$lastRowID.",18446744073709551615"; // the big number is for the freaking offset to work ...
+		$offset = "LIMIT ".$lastRowID.",100"; // the big number is for the freaking offset to work ...
 
 	$result = $db->query("SELECT * FROM crons WHERE ID = ".$cronID);
 	$cronData = mysql_fetch_assoc($result);
 
-	$result = $db->query("SELECT * FROM logger WHERE runID = '".$runID."' ORDER BY dateTimeAdded ".$offset);
+	$result = $db->query("SELECT *, (SELECT UNIX_TIMESTAMP(logger.dateTimeAdded) - UNIX_TIMESTAMP(cron_runs.startDateTime) FROM cron_runs WHERE cron_runs.runID = logger.runID) as logTime FROM logger WHERE runID = '".$runID."' ORDER BY dateTimeAdded ".$offset);
 	$lastRowID = mysql_num_rows($result);
 	while($item = mysql_fetch_assoc($result))
 	{
-		$logger[] = $item;
-		// $tmp = explode("\n",$item['output']);
-		// foreach($tmp as $line)
-		// {
-		// 	$tempItem = $item;
-		// 	unset($tempItem['runID']);
-		// 	$tempItem['output'] = $line;
-		// 	$logger[] = $tempItem;
-		// }
+		// $logger[] = $item;
+		$tmp = explode("\n",$item['output']);
+		foreach($tmp as $line)
+		{
+			$tempItem = $item;
+			$tempItem['logTime'] = "[".gmdate("H:i:s", $tempItem['logTime'])."]";
+			unset($tempItem['runID']);
+			if($line == "")
+				continue;
+			$tempItem['output'] = $line;
+			$logger[] = $tempItem;
+		}
 	}
 
 	return array(
@@ -95,6 +105,37 @@ function getLogsForCron($cronID, $runID = "", $lastRowID = "")
 		"isRunning" => $cronData['isRunning'],
 		"lastRowID" => $lastRowID
 	);
+}
+
+function getCronRunList($cronID)
+{
+	$db = DB::getInstance();
+	$runList = array();
+
+	$result = $db->query("SELECT *,
+						       IF(isRunning = 1 AND lastRunID = runID, 
+						       		UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(startDateTime), 
+						       		UNIX_TIMESTAMP(endDateTime) - UNIX_TIMESTAMP(startDateTime) 
+						       ) AS runningTime,
+						       IF(lastRunID = runID AND isRunning = 1, 1 , 0) AS isRunning
+						FROM
+						  ( SELECT *,
+						     (SELECT runID
+						      FROM cron_runs
+						      WHERE cronID = '".$cronID."'
+						      ORDER BY startDateTime DESC LIMIT 1) lastRunID
+						   FROM cron_runs
+						   INNER JOIN crons ON crons.ID = cron_runs.cronID
+						   WHERE cronID = '".$cronID."'
+						   ORDER BY startDateTime DESC ) AS x
+	");
+	while($item = mysql_fetch_assoc($result))
+	{
+		$item['runningTime'] = "[".gmdate("H:i:s", $item['runningTime'])."]";
+		$runList[] = $item;
+	}
+
+	return $runList;
 }
 
 
