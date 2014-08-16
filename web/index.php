@@ -32,6 +32,8 @@
 
 				$(".cronRunList").hide();
 				$(".cronLogsZone").show();
+				$(".cronLogs").empty();
+				$(".cronLogTimes").empty();
 				getLogsForCron(cronID, runID);
 			}
 		}
@@ -147,7 +149,8 @@
 				}
 				$(".cronLogs").append($tmpCronLogs);
 				$(".cronLogTimes").append($tmpCronLogTimes);
-				$(".cronLogsZone").scrollTop($('.cronLogsZone')[0].scrollHeight);
+				if( $('.cronLogsZone')[0].scrollTop + $('.cronLogsZone').height() + 200 >= $('.cronLogsZone')[0].scrollHeight )
+					$(".cronLogsZone").scrollTop($('.cronLogsZone')[0].scrollHeight);
 				lastLogRowID += data.data.lastRowID;
 				if(data.data.isRunning == "1")
 				{
